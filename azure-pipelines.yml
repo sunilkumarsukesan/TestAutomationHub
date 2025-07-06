@@ -7,9 +7,9 @@ resources:
       type: github
       name: sunilkumarsukesan/TestAutomationHub
       endpoint: sunilkumarsukesan (1)
-    - repository: azureRepo
-      type: git
-      name: learning-devops/_git/webdriver-tests
+    - repository: githubRepo
+      type: github
+      name: sunilkumarsukesan/webdriverio-framework
 
 pool:
   name: 'Default'
@@ -37,7 +37,8 @@ stages:
     jobs:
       - job: Smoke
         steps:
-          - checkout: azureRepo
+          - checkout: githubRepo
           - script: |
-              mvn clean test
+              npm install
+              npm run test
             displayName: 'Run Smoke Tests'
