@@ -21,6 +21,7 @@ stages:
         steps:
           - checkout: githubRepo
           - script: |
+              npm install
               npm run dev
             displayName: 'Build dev App'
 
