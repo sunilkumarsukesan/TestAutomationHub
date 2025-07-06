@@ -19,7 +19,7 @@ stages:
     jobs:
       - job: Build
         steps:
-          - checkout: azureRepo
+          - checkout: githubRepo
           - script: |
               npm run dev
             displayName: 'Build dev App'
@@ -36,7 +36,7 @@ stages:
     jobs:
       - job: Smoke
         steps:
-          - checkout: githubRepo
+          - checkout: azureRepo
           - script: |
               mvn clean test
             displayName: 'Run Smoke Tests'
