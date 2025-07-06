@@ -21,7 +21,6 @@ stages:
         steps:
           - checkout: azureRepo
           - script: |
-              npm install
               npm run dev
             displayName: 'Build dev App'
 
