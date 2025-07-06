@@ -1,21 +1,43 @@
-# Node.js with Vue
-# Build a Node.js project that uses Vue.
-# Add steps that analyze code, save build artifacts, deploy, and more:
-# https://docs.microsoft.com/azure/devops/pipelines/languages/javascript
+name: '2025.07.$(Build.BuildId)'
+trigger: none
 
-trigger:
-- main
+resources:
+  repositories:
+    - repository: githubRepo
+      type: github
+      name: sunilkumarsukesan/TestAutomationHub
+      endpoint: sunilkumarsukesan (1)
+    - repository: azureRepo
+      type: git
+      name: learning-devops/_git/webdriver-tests
 
 pool:
-  name: Default
+  name: 'Default'
 
-steps:
-- task: NodeTool@0
-  inputs:
-    versionSpec: '20.x'
-  displayName: 'Install Node.js'
+stages:
+  - stage: Build
+    jobs:
+      - job: Build
+        steps:
+          - checkout: azureRepo
+          - script: |
+              npm install
+              npm run dev
+            displayName: 'Build dev App'
 
-- script: |
-    npm install
-    npm run dev
-  displayName: 'npm install and dev'
+  - stage: Dev_Deploy
+    dependsOn: Build
+    jobs:
+      - job: DeployToDev
+        steps:
+          - script: echo "Deploying to Dev..."
+
+  - stage: Smoke_Tests
+    dependsOn: Dev_Deploy
+    jobs:
+      - job: Smoke
+        steps:
+          - checkout: githubRepo
+          - script: |
+              mvn clean test
+            displayName: 'Run Smoke Tests'
