@@ -7,9 +7,10 @@ resources:
       type: github
       name: sunilkumarsukesan/TestAutomationHub
       endpoint: sunilkumarsukesan (1)
-    - repository: githubRepo
+    - repository: githubRepo1
       type: github
       name: sunilkumarsukesan/webdriverio-framework
+      endpoint: sunilkumarsukesan (1)
 
 pool:
   name: 'Default'
@@ -37,7 +38,7 @@ stages:
     jobs:
       - job: Smoke
         steps:
-          - checkout: githubRepo
+          - checkout: githubRepo1
           - script: |
               npm install
               npm run test
