@@ -55,5 +55,6 @@ stages:
               runOptions: 'commands'
               commands: |
                 cd /home/sunilsukesan/react-app
-                nohup npx serve -s . -l 5173 &
+                npx serve -s . -l 5173 > serve.log 2>&1 &
               failOnStdErr: false
+              readyTimeout: '20000'
