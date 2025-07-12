@@ -54,6 +54,22 @@ stages:
               sshEndpoint: 'ubuntu-free-vm'
               runOptions: 'commands'
               commands: |
-                cd /home/sunilsukesan/react-app/
-                npx serve -s . -l 5173 > serve.log 2>&1 &
-              failOnStdErr: false
+                cd /home/sunilsukesan/react-app
+                
+                # Ensure pm2 is installed
+                if ! command -v pm2 &> /dev/null; then
+                  echo "Installing pm2 globally..."
+                  sudo npm install -g pm2
+                fi
+
+                # Stop existing app (if any)
+                pm2 delete react-app || true
+
+                # Navigate to dist and serve it
+                cd dist
+
+                pm2 start npx --name react-app -- serve -s . -l 5173
+
+                # Save and auto-start pm2 on reboot
+                pm2 save
+                pm2 startup --silent
