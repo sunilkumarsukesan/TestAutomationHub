@@ -54,22 +54,22 @@ stages:
               sshEndpoint: 'ubuntu-free-vm'
               runOptions: 'commands'
               commands: |
+                # Navigate to project
                 cd /home/sunilsukesan/react-app
-                
-                # Ensure pm2 is installed
-                if ! command -v pm2 &> /dev/null; then
-                  echo "Installing pm2 globally..."
-                  sudo npm install -g pm2
-                fi
 
-                # Stop existing app (if any)
+                # Always install pm2 globally (safe even if already installed)
+                sudo npm install -g pm2
+
+                # Stop existing pm2 app if running
                 pm2 delete react-app || true
 
-                # Navigate to dist and serve it
+                # Go to dist and start with serve
                 cd dist
 
-                pm2 start npx --name react-app -- serve -s . -l 5173
+                # Start using pm2 and expose port 5173
+                pm2 start "npx serve -s . -l 5173" --name react-app
 
-                # Save and auto-start pm2 on reboot
+                # Save pm2 process list and enable startup on reboot
                 pm2 save
                 pm2 startup --silent
+
