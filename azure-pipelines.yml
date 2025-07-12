@@ -7,75 +7,65 @@ resources:
       type: github
       name: sunilkumarsukesan/TestAutomationHub
       endpoint: sunilkumarsukesan (1)
-    - repository: githubRepo1
-      type: github
-      name: sunilkumarsukesan/webdriverio-framework
-      endpoint: sunilkumarsukesan (1)
-
-pool:
-  name: 'Azure Pipelines'
 
 stages:
   - stage: Build
+    displayName: Build React App
     jobs:
       - job: Build
+        pool:
+          vmImage: ubuntu-latest
         steps:
           - checkout: githubRepo
+
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '18.x'
+            displayName: 'Install Node.js'
 
           - script: |
               npm install
               npm run build
-            displayName: 'Build and Generate Dist'
+            displayName: 'Install dependencies & build'
+
+          - task: CopyFiles@2
+            inputs:
+              sourceFolder: '$(Build.SourcesDirectory)/dist'
+              contents: '**'
+              targetFolder: '$(Build.ArtifactStagingDirectory)/dist'
+            displayName: 'Prepare artifact'
 
           - task: PublishBuildArtifacts@1
             inputs:
-              PathtoPublish: 'dist'
-              ArtifactName: 'react-dist'
-              publishLocation: 'Container'
+              pathToPublish: '$(Build.ArtifactStagingDirectory)/dist'
+              artifactName: 'dist'
+            displayName: 'Publish dist as artifact'
 
-  - stage: Dev_Deploy
+  - stage: Deploy
+    displayName: Deploy to Azure VM
     dependsOn: Build
     jobs:
-      - job: DeployToDev
+      - job: Deploy
+        pool:
+          vmImage: ubuntu-latest
         steps:
           - download: current
-            artifact: react-dist
+            artifact: dist
 
           - task: CopyFilesOverSSH@0
             inputs:
-              sshEndpoint: 'ubuntu-free-vm'  # You must define this service connection
-              sourceFolder: '$(Pipeline.Workspace)/react-dist'
-              targetFolder: '/home/sunilsukesan/react-app'
-              cleanTargetFolder: true
+              sshEndpoint: 'ubuntu-free-vm'
+              sourceFolder: '$(Pipeline.Workspace)/dist'
+              contents: '**'
+              targetFolder: '/home/sunilsukesan/react-app/dist'
               overwrite: true
+            displayName: 'Copy dist to Azure VM'
 
           - task: SSH@0
             inputs:
               sshEndpoint: 'ubuntu-free-vm'
               runOptions: 'inline'
               inline: |
-                echo "🔄 Cleaning up any previous serve process..."
-                PID=$(sudo lsof -t -i:5173 || true)
-                if [ ! -z "$PID" ]; then
-                  echo "Killing process on 5173 (PID: $PID)..."
-                  sudo kill -9 $PID
-                else
-                  echo "No process running on 5173"
-                fi
-
-                echo "🧹 Cleaning previous PM2 processes..."
-                pm2 delete all || true
-                pm2 save || true
-
-                echo "📦 Ensuring PM2 and serve are installed..."
-                sudo npm install -g pm2 serve
-
-                echo "🚀 Starting app using PM2 serve..."
                 cd /home/sunilsukesan/react-app/dist
-                pm2 start "npx serve -s . -l 5173" --name react-app
-                pm2 save
-                pm2 startup --silent
-            displayName: 'SSH: Cleanup + Serve React App'
-
-
-
+                nohup npx serve -s . > serve.log 2>&1 &
+            displayName: 'Serve the app in background'
