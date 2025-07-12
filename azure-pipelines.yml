@@ -52,22 +52,30 @@ stages:
           - task: SSH@0
             inputs:
               sshEndpoint: 'ubuntu-free-vm'
-              runOptions: 'commands'
-              commands: |
-                cd /home/sunilsukesan/react-app
-                
-                # Install pm2 always (safe even if already exists)
-                sudo npm install -g pm2
+              runOptions: 'inline'
+              inline: |
+                echo "🔄 Cleaning up any previous serve process..."
+                PID=$(sudo lsof -t -i:5173 || true)
+                if [ ! -z "$PID" ]; then
+                  echo "Killing process on 5173 (PID: $PID)..."
+                  sudo kill -9 $PID
+                else
+                  echo "No process running on 5173"
+                fi
 
-                # Stop old app quietly if it exists
-                pm2 delete react-app 2>/dev/null || true
+                echo "🧹 Cleaning previous PM2 processes..."
+                pm2 delete all || true
+                pm2 save || true
 
-                # Start the app using serve via pm2
-                pm2 start "npx serve -s /home/sunilsukesan/react-app -l 5173" --name react-app
+                echo "📦 Ensuring PM2 and serve are installed..."
+                sudo npm install -g pm2 serve
 
-                # Save and enable restart on reboot
+                echo "🚀 Starting app using PM2 serve..."
+                cd /home/sunilsukesan/react-app/dist
+                pm2 start "npx serve -s . -l 5173" --name react-app
                 pm2 save
                 pm2 startup --silent
-              failOnStdErr: false
+            displayName: 'SSH: Cleanup + Serve React App'
+
 
 
