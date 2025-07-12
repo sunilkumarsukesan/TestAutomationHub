@@ -21,25 +21,39 @@ stages:
       - job: Build
         steps:
           - checkout: githubRepo
+
           - script: |
               npm install
-              npm run dev
-            displayName: 'Build dev App'
+              npm run build
+            displayName: 'Build and Generate Dist'
+
+          - task: PublishBuildArtifacts@1
+            inputs:
+              PathtoPublish: 'dist'
+              ArtifactName: 'react-dist'
+              publishLocation: 'Container'
 
   - stage: Dev_Deploy
     dependsOn: Build
     jobs:
       - job: DeployToDev
         steps:
-          - script: echo "Deploying to Dev..."
+          - download: current
+            artifact: react-dist
 
-  - stage: Smoke_Tests
-    dependsOn: Dev_Deploy
-    jobs:
-      - job: Smoke
-        steps:
-          - checkout: githubRepo1
-          - script: |
-              npm install
-              npm run test
-            displayName: 'Run Smoke Tests'
+          - task: CopyFilesOverSSH@0
+            inputs:
+              sshEndpoint: 'ubuntu-free-vm'  # You must define this service connection
+              sourceFolder: '$(Pipeline.Workspace)/react-dist'
+              targetFolder: '/home/sunilsukesan/react-app'
+              cleanTargetFolder: true
+              overwrite: true
+
+          - task: SSH@0
+            inputs:
+              sshEndpoint: 'ubuntu-free-vm'
+              runOptions: 'commands'
+              commands: |
+                cd /home/sunilsukesan/react-app
+                nohup npx serve -s . -l 5173 &
+              failOnStdErr: false
