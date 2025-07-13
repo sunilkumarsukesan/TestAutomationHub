@@ -66,9 +66,13 @@ stages:
               sshEndpoint: 'ubuntu-free-vm'
               runOptions: 'inline'
               inline: |
-                echo "Killing any app on port 3000 or 5173"
-                sudo fuser -k 3000/tcp || echo "Port 3000 already free"
-                sudo fuser -k 5173/tcp || echo "Port 5173 already free"
+                echo "🔪 Killing apps on ports 3000 and 5173 (if any)..."
+
+                # Kill anything on port 3000
+                PID_3000=$(sudo lsof -t -i:3000) && sudo kill -9 $PID_3000 && echo "Killed process on port 3000" || echo "Nothing running on port 3000"
+
+                # Kill anything on port 5173
+                PID_5173=$(sudo lsof -t -i:5173) && sudo kill -9 $PID_5173 && echo "Killed process on port 5173" || echo "Nothing running on port 5173"
 
                 echo "Sleeping for 5 seconds"
                 sleep 5
