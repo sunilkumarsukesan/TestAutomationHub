@@ -67,8 +67,8 @@ stages:
               runOptions: 'inline'
               inline: |
                 echo "Killing any app on port 3000 or 5173"
-                sudo fuser -k 3000/tcp || true
-                sudo fuser -k 5173/tcp || true
+                sudo fuser -k 3000/tcp || echo "Port 3000 already free"
+                sudo fuser -k 5173/tcp || echo "Port 5173 already free"
 
                 echo "Sleeping for 5 seconds"
                 sleep 5
@@ -76,4 +76,4 @@ stages:
                 echo "Starting the app in background"
                 cd /home/sunilsukesan/react-app/dist
                 nohup npx serve -s . > serve.log 2>&1 &
-            displayName: 'Serve the app in background'
+            displayName: 'Stop app, sleep, and serve new app'
