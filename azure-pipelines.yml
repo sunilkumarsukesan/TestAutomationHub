@@ -1,0 +1,108 @@
+name: '2025.07.$(Build.BuildId)'
+trigger: none
+
+resources:
+  repositories:
+    - repository: githubRepo
+      type: github
+      name: sunilkumarsukesan/TestAutomationHub
+      endpoint: sunilkumarsukesan (1)
+
+stages:
+  - stage: SonarQube
+    displayName: 'SonarQube Analysis'
+    jobs:
+      - job: RunSonar
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: githubRepo
+
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '18.x'
+            displayName: 'Install Node.js'
+
+          - script: |
+              npm install
+              npx sonar-scanner \
+                -Dsonar.projectKey=TestAutomationHub \
+                -Dsonar.sources=. \
+                -Dsonar.host.url=http://20.17.97.4:9000 \
+                -Dsonar.token=$(SonarToken)
+            displayName: 'Run SonarQube Scan'
+
+  - stage: Build
+    displayName: 'Build React App'
+    dependsOn: SonarQube
+    condition: succeeded()
+    jobs:
+      - job: Build
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - checkout: githubRepo
+
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '18.x'
+            displayName: 'Install Node.js'
+
+          - script: |
+              npm install
+              npm run build
+            displayName: 'Install dependencies & build'
+
+          - task: CopyFiles@2
+            inputs:
+              sourceFolder: '$(Build.SourcesDirectory)/dist'
+              contents: '**'
+              targetFolder: '$(Build.ArtifactStagingDirectory)/dist'
+            displayName: 'Prepare artifact'
+
+          - task: PublishBuildArtifacts@1
+            inputs:
+              pathToPublish: '$(Build.ArtifactStagingDirectory)/dist'
+              artifactName: 'dist'
+            displayName: 'Publish dist as artifact'
+
+  - stage: Deploy
+    displayName: 'Deploy to Azure VM'
+    dependsOn: Build
+    jobs:
+      - job: Deploy
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - download: current
+            artifact: dist
+
+          - task: CopyFilesOverSSH@0
+            inputs:
+              sshEndpoint: 'ubuntu-free-vm'
+              sourceFolder: '$(Pipeline.Workspace)/dist'
+              contents: '**'
+              targetFolder: '/home/sunilsukesan/react-app/dist'
+              overwrite: true
+            displayName: 'Copy dist to Azure VM'
+
+          - task: SSH@0
+            inputs:
+              sshEndpoint: 'ubuntu-free-vm'
+              runOptions: 'inline'
+              inline: |
+                echo "🔪 Killing apps on ports 3000 and 5173 (if any)..."
+
+                # Kill anything on port 3000
+                PID_3000=$(sudo lsof -t -i:3000) && sudo kill -9 $PID_3000 && echo "Killed process on port 3000" || echo "Nothing running on port 3000"
+
+                # Kill anything on port 5173
+                PID_5173=$(sudo lsof -t -i:5173) && sudo kill -9 $PID_5173 && echo "Killed process on port 5173" || echo "Nothing running on port 5173"
+
+                echo "Sleeping for 5 seconds"
+                sleep 5
+
+                echo "Starting the app in background"
+                cd /home/sunilsukesan/react-app/dist
+                nohup npx serve -s . > serve.log 2>&1 &
+            displayName: 'Stop app, sleep, and serve new app'
