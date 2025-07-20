@@ -33,7 +33,7 @@ stages:
                 -Dsonar.projectKey=TestingFramework \
                 -Dsonar.sources=. \
                 -Dsonar.host.url=http://20.17.97.4:9000 \
-                -Dsonar.token=$(SonarToken)
+                -Dsonar.token=$(QASonarToken)
             displayName: 'Run SonarQube Scan'
 
   - stage: Test
