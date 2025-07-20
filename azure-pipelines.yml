@@ -1,96 +1,108 @@
-name: 'TestRun_2025.07.$(Build.BuildId)'
+name: '2025.07.$(Build.BuildId)'
 trigger: none
 
 resources:
-  pipelines:
-    - pipeline: deployPipeline  # alias
-      source: TestAutomationHub
-      trigger:
-        branches:
-          include:
-            - main
-
-variables:
-  SCREENSHOT_STRATEGY: 'always'
+  repositories:
+    - repository: githubRepo
+      type: github
+      name: sunilkumarsukesan/TestAutomationHub
+      endpoint: sunilkumarsukesan (1)
 
 stages:
   - stage: SonarQube
     displayName: 'SonarQube Analysis'
     jobs:
       - job: RunSonar
-        displayName: 'Run SonarQube and Validate Gate'
         pool:
-          name: Default
+          vmImage: ubuntu-latest
         steps:
+          - checkout: githubRepo
+
           - task: NodeTool@0
             inputs:
-              versionSpec: '20.x'
+              versionSpec: '18.x'
             displayName: 'Install Node.js'
 
-          - task: Npm@1
-            displayName: 'Install Dependencies'
-            inputs:
-              command: 'install'
-
           - script: |
-              echo "Running SonarQube Analysis...
-
+              npm install
               npx sonar-scanner \
-                -Dsonar.projectKey=TestingFramework \
+                -Dsonar.projectKey=TestAutomationHub \
                 -Dsonar.sources=. \
                 -Dsonar.host.url=http://20.17.97.4:9000 \
-                -Dsonar.token=$(SonarToken) \
-                | tee scanner-output.txt
+                -Dsonar.token=$(SonarToken)
+            displayName: 'Run SonarQube Scan'
 
-              CE_TASK_URL=$(grep -oP 'ceTaskUrl: \K.*' scanner-output.txt)
-              echo "🔁 Polling Quality Gate from: $CE_TASK_URL"
-
-              for i in {1..10}; do
-                STATUS=$(curl -s -u $SONAR_TOKEN: $CE_TASK_URL | jq -r '.task.status')
-                if [ "$STATUS" == "SUCCESS" ]; then
-                  ANALYSIS_ID=$(curl -s -u $SONAR_TOKEN: $CE_TASK_URL | jq -r '.task.analysisId')
-                  break
-                fi
-                echo "Waiting for quality gate result... ($i/10)"
-                sleep 5
-              done
-
-              QG_STATUS=$(curl -s -u $SONAR_TOKEN: "$SONAR_HOST/api/qualitygates/project_status?analysisId=$ANALYSIS_ID" | jq -r '.projectStatus.status')
-              echo "📊 Quality Gate status: $QG_STATUS"
-
-              if [ "$QG_STATUS" != "OK" ]; then
-                echo "❌ SonarQube Quality Gate failed!"
-                exit 1
-              else
-                echo "✅ Quality Gate passed!"
-              fi
-            displayName: 'Run SonarQube and Validate Quality Gate'
-
-  - stage: Test
-    displayName: 'Run Tests'
+  - stage: Build
+    displayName: 'Build React App'
     dependsOn: SonarQube
     condition: succeeded()
     jobs:
-      - job: RunTests
+      - job: Build
         pool:
-          name: Default
+          vmImage: ubuntu-latest
         steps:
-          - script: |
-              echo "🧪 Running tests..."
-              npm run test
-            displayName: 'Run Tests'
+          - checkout: githubRepo
 
-  - stage: Report
-    displayName: '📄 Publish Test Report'
-    dependsOn: Test
-    condition: succeededOrFailed()
-    jobs:
-      - job: PublishReport
-        pool:
-          name: Default
-        steps:
-          - task: PublishPipelineArtifact@1
-            displayName: '📄 Publish Test Report'
+          - task: NodeTool@0
             inputs:
-              targetPath: '$(System.DefaultWorkingDirectory)/reports'
-              artifact: 'TestExecution_Report'
+              versionSpec: '18.x'
+            displayName: 'Install Node.js'
+
+          - script: |
+              npm install
+              npm run build
+            displayName: 'Install dependencies & build'
+
+          - task: CopyFiles@2
+            inputs:
+              sourceFolder: '$(Build.SourcesDirectory)/dist'
+              contents: '**'
+              targetFolder: '$(Build.ArtifactStagingDirectory)/dist'
+            displayName: 'Prepare artifact'
+
+          - task: PublishBuildArtifacts@1
+            inputs:
+              pathToPublish: '$(Build.ArtifactStagingDirectory)/dist'
+              artifactName: 'dist'
+            displayName: 'Publish dist as artifact'
+
+  - stage: Deploy
+    displayName: 'Deploy to Azure VM'
+    dependsOn: Build
+    jobs:
+      - job: Deploy
+        pool:
+          vmImage: ubuntu-latest
+        steps:
+          - download: current
+            artifact: dist
+
+          - task: CopyFilesOverSSH@0
+            inputs:
+              sshEndpoint: 'ubuntu-free-vm'
+              sourceFolder: '$(Pipeline.Workspace)/dist'
+              contents: '**'
+              targetFolder: '/home/sunilsukesan/react-app/dist'
+              overwrite: true
+            displayName: 'Copy dist to Azure VM'
+
+          - task: SSH@0
+            inputs:
+              sshEndpoint: 'ubuntu-free-vm'
+              runOptions: 'inline'
+              inline: |
+                echo "🔪 Killing apps on ports 3000 and 5173 (if any)..."
+
+                # Kill anything on port 3000
+                PID_3000=$(sudo lsof -t -i:3000) && sudo kill -9 $PID_3000 && echo "Killed process on port 3000" || echo "Nothing running on port 3000"
+
+                # Kill anything on port 5173
+                PID_5173=$(sudo lsof -t -i:5173) && sudo kill -9 $PID_5173 && echo "Killed process on port 5173" || echo "Nothing running on port 5173"
+
+                echo "Sleeping for 5 seconds"
+                sleep 5
+
+                echo "Starting the app in background"
+                cd /home/sunilsukesan/react-app/dist
+                nohup npx serve -s . > serve.log 2>&1 &
+            displayName: 'Stop app, sleep, and serve new app'
