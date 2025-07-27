@@ -25,7 +25,7 @@ WORKDIR /app
 COPY --from=builder /app/dist ./dist
 
 # Expose the port the app runs on
-EXPOSE 3000
+EXPOSE 80
 
 # Serve the app
-CMD ["serve", "-s", "dist", "-l", "0.0.0.0:3000"]
+CMD ["serve", "-s", "dist", "-l", "80"]
