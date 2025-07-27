@@ -1,5 +1,8 @@
 name: '2025.07.$(Build.BuildId)'
-trigger: none
+trigger:
+  branches:
+    include:
+      - main
 
 resources:
   repositories:
