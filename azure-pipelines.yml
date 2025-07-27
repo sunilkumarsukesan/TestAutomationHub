@@ -1,0 +1,109 @@
+trigger: none  # Manual trigger only
+
+pool:
+  vmImage: 'ubuntu-latest'
+
+variables:
+  # Docker/ACR settings
+  imageName: 'testautomationhubviayaml'
+  acrName: 'testautomationhub'
+  acrLoginServer: '$(acrName).azurecr.io'
+  dockerfilePath: 'Dockerfile'
+  dockerServiceConnection: 'ACR_Docker'
+
+  # Azure deployment settings
+  azureSubscription: 'Azure subscription 1'
+  resourceGroupName: 'rg-docker-demo'
+  containerInstanceName: 'test-automation-hub'
+
+stages:
+  - stage: Build
+    displayName: 'NPM Build for React App'
+    jobs:
+      - job: BuildJob
+        displayName: 'Run npm build'
+        steps:
+          - checkout: self
+
+          - task: NodeTool@0
+            inputs:
+              versionSpec: '18.x'
+            displayName: 'Use Node.js 18'
+
+          - script: |
+              npm install
+              npm run build
+            displayName: 'Install & Build App'
+
+          - task: PublishBuildArtifacts@1
+            inputs:
+              pathtoPublish: 'dist'  # or 'build' depending on your project
+              artifactName: 'WebApp'
+            displayName: 'Publish Build Output'
+
+  - stage: DockerBuildPush
+    displayName: 'Build and Push Docker Image'
+    dependsOn: Build
+    jobs:
+      - job: DockerBuildPushJob
+        displayName: 'Build Docker Image and Push to ACR'
+        steps:
+          - checkout: self
+
+          - download: current
+            artifact: WebApp
+            displayName: 'Download Web Artifact'
+
+          - script: |
+              cp -r $(Pipeline.Workspace)/WebApp/* ./
+            displayName: 'Copy Build Output for Docker Context'
+
+          - task: Docker@2
+            displayName: 'Login to Azure Container Registry'
+            inputs:
+              command: login
+              containerRegistry: '$(dockerServiceConnection)'
+
+          - task: Docker@2
+            displayName: 'Build and Push Docker Image to ACR'
+            inputs:
+              command: buildAndPush
+              repository: '$(imageName)'
+              dockerfile: '$(dockerfilePath)'
+              buildContext: '.'
+              containerRegistry: '$(dockerServiceConnection)'
+              tags: |
+                $(Build.BuildId)
+                latest
+
+  - stage: Deploy
+    displayName: 'Restart ACI with New Docker Image'
+    dependsOn: DockerBuildPush
+    condition: succeeded()
+    jobs:
+      - job: DeployACIJob
+        displayName: 'Restart Azure Container Instance'
+        steps:
+          - task: AzureCLI@2
+            displayName: 'Restart Container with Latest Image'
+            inputs:
+              azureSubscription: '$(azureSubscription)'
+              scriptType: 'bash'
+              scriptLocation: 'inlineScript'
+              inlineScript: |
+                echo "Restarting container instance..."
+                echo "Image: $(acrLoginServer)/$(imageName):latest"
+
+                az container restart \
+                  --resource-group $(resourceGroupName) \
+                  --name $(containerInstanceName)
+
+                echo "Waiting for container restart to complete..."
+                sleep 45
+
+                STATE=$(az container show --resource-group $(resourceGroupName) --name $(containerInstanceName) --query "containers[0].instanceView.currentState.state" --output tsv)
+                FQDN=$(az container show --resource-group $(resourceGroupName) --name $(containerInstanceName) --query "ipAddress.fqdn" --output tsv)
+
+                echo "Status: $STATE"
+                echo "App URL: http://$FQDN"
+                echo "Using Image: $(acrLoginServer)/$(imageName):latest"
