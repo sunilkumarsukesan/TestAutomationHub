@@ -8,11 +8,11 @@ variables:
   imageName: 'testautomationhubviayaml'
   acrName: 'testautomationhub'
   acrLoginServer: '$(acrName).azurecr.io'
-  dockerfilePath: 'Dockerfile'
+  dockerfilePath: 'dockerfile'
   dockerServiceConnection: 'ACR_Docker'
 
   # Azure deployment settings
-  azureSubscription: 'Azure subscription 1'
+  azureSubscription: 'ACI_Temp'
   resourceGroupName: 'rg-docker-demo'
   containerInstanceName: 'test-automation-hub'
 
