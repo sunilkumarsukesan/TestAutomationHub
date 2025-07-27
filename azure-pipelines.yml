@@ -76,6 +76,10 @@ stages:
                 $(Build.BuildId)
                 latest
 
+          - script: |
+              echo "Docker image pushed: $(acrLoginServer)/$(imageName):$(Build.BuildId)"
+            displayName: 'Log Docker Image Details'
+
   - stage: Deploy
     displayName: 'Restart ACI with New Docker Image'
     dependsOn: DockerBuildPush
